@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "th_packet.h"
+#include "utility.h"
 
 void* packet_init(void *val)
 {
@@ -63,7 +64,9 @@ void trace_packet(char *FILENAME,
         //printf("%llu-%llu-%llu\n", inter_time, token, service_time);
 
         /* Call Engine */
-        packet_engine(inter_time, token, service_time);
+        packet_engine(millisec_llto_microsec(inter_time), 
+                      token, 
+                      millisec_llto_microsec(service_time));
 
         line++;
     }
@@ -74,7 +77,11 @@ void packet_engine(unsigned long long inter_time,
                    unsigned long long token, 
                    unsigned long long service_time)
 {
+    pthread_mutex_lock(&m);
     /* Working code for packet goes here */
+    printf("Packet Thread: %llu\t%llu\t%llu\n", inter_time, token, service_time);
+    pthread_mutex_unlock(&m);
+    usleep(inter_time);
 
 }
 

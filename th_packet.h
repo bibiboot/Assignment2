@@ -1,4 +1,3 @@
-#include "utility.h"
 
 void* packet_init(void *val);
 

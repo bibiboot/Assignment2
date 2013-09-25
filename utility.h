@@ -1,3 +1,9 @@
+#include <pthread.h>
+#include <unistd.h>
+
+//pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t m;
+
 typedef struct packet_data {
     char *lambda;
     char *mu ;
@@ -13,6 +19,8 @@ unsigned long long to_ll(char *temp);
 unsigned long long sec_to_microsec(char* sec);
 
 unsigned long long millisec_to_microsec(char* millisec);
+
+unsigned long long millisec_llto_microsec(unsigned long long millisec);
 
 int check_format(int result,
                  int line,

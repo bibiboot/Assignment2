@@ -23,6 +23,13 @@ unsigned long long millisec_to_microsec(char* millisec)
     return micro;
 }
 
+unsigned long long millisec_llto_microsec(unsigned long long millisec)
+{
+    /* Convert millisec to microsec */
+    unsigned long long micro = millisec*1000;
+    return micro;
+}
+
 int check_format(int result,
                  int line,
                  unsigned long long inter_time,
@@ -36,3 +43,5 @@ int check_format(int result,
 
     return 0;
 }
+
+struct 

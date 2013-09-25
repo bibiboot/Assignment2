@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
+#include <string.h>
 #include "th_packet.h"
-#include "string.h"
+#include "th_token.h"
+#include "th_server.h"
+#include "utility.h"
 
 void print_input(char *lambda, char* mu, char *FILENAME,
                  char *r, char *B, char *P, char *n);
@@ -11,9 +13,12 @@ void create_packet_thread(char *lambda, char* mu,
                     char *B, char *P, char *n);
 
 
+/* Initialize mutex */
+
 int main(int argc, char *argv[])
 {
     /* Packet Thread */
+    pthread_mutex_init(&m, 0);
     int i;
     FILE *fp ;
     char buffer[1024];
@@ -21,7 +26,7 @@ int main(int argc, char *argv[])
     int result, inter_time, token, service_time, num;
     char *lambda = "2";
     char *mu = "4";
-    char *r = "1";
+    char *r = "4";
     char *B = "10";
     char *P = "3";
     char *n = "20";
@@ -70,6 +75,7 @@ int main(int argc, char *argv[])
      }
 
     print_input(lambda, mu, FILENAME, r, B, P, n);
+    /* Create packet thread */
     create_packet_thread(lambda, mu, FILENAME, r, B, P, n);
 
     return(0);
@@ -79,21 +85,28 @@ void create_packet_thread(char *lambda, char* mu,
                     char *FILENAME, char *r, 
                     char *B, char *P, char *n)
 {
+    /* Thread creation */
     MyPacketData *pd = malloc(sizeof(MyPacketData));
+    pd->FILENAME = FILENAME;
     pd->lambda = lambda;
     pd->mu = mu;
-    pd->FILENAME = FILENAME;
     pd->r = r;
     pd->B = B;
     pd->P = P;
     pd->n = n;
    
-    pthread_t packet;
+    pthread_t packet, token, server;
     
     /* Create packet thread */
     pthread_create(&packet, 0, packet_init, (void *)pd);
+    /* Create Token thread */
+    pthread_create(&token, 0, token_init, (void *)pd);
+    /* Create Server thread */
+    pthread_create(&server, 0, server_init, (void *)pd);
    
     pthread_join(packet, 0);
+    pthread_join(token, 0);
+    pthread_join(server, 0);
 }
 
 void print_input(char *lambda, char* mu, char *FILENAME,
