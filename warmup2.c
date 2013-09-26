@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include "th_packet.h"
 #include "th_token.h"
 #include "th_server.h"
@@ -11,6 +12,7 @@ void print_input(char *lambda, char* mu, char *FILENAME,
 void create_packet_thread(char *lambda, char* mu,
                     char *FILENAME, char *r,
                     char *B, char *P, char *n);
+void print_stats();
 
 
 /* Initialize mutex */
@@ -18,7 +20,9 @@ void create_packet_thread(char *lambda, char* mu,
 int main(int argc, char *argv[])
 {
     /* Packet Thread */
+    /* Initialize the mutex */
     pthread_mutex_init(&m, 0);
+
     int i;
     FILE *fp ;
     char buffer[1024];
@@ -76,8 +80,18 @@ int main(int argc, char *argv[])
 
     print_input(lambda, mu, FILENAME, r, B, P, n);
     /* Create packet thread */
+
+    /* Initialize the time */ 
+    gettimeofday(&START_TIMEVAL, NULL);
+
+    fprintf(stdout, "\n");
+    print_emulation_time();
+    fprintf(stdout, "emulation begins\n");
+
     create_packet_thread(lambda, mu, FILENAME, r, B, P, n);
 
+    /* Print statistics */
+    print_stats();
     return(0);
 }
 
@@ -120,4 +134,21 @@ void print_input(char *lambda, char* mu, char *FILENAME,
          fprintf(stdout, "%4sP =  %s\n%4snumber to arrive = %s\n", "", P,"", n);
      else
          fprintf(stdout, "%4stsfile = %s\n", "",FILENAME);
+}
+
+void print_stats()
+{
+    fprintf(stdout, "\nStatistics:\n\n");
+    fprintf(stdout, "%4saverage packet inter-arrival time = \n", "");
+    fprintf(stdout, "%4saverage packet service time = \n\n", ""); 
+
+    fprintf(stdout, "%4saverage number of packets in Q1 = \n", ""); 
+    fprintf(stdout, "%4saverage number of packets in Q2 = \n", ""); 
+    fprintf(stdout, "%4saverage number of packets at S = \n\n", ""); 
+
+    fprintf(stdout, "%4saverage time a packet spent in system = \n", ""); 
+    fprintf(stdout, "%4sstandard deviation for time spent in system = \n\n", ""); 
+
+    fprintf(stdout, "%4stoken drop probability = \n", ""); 
+    fprintf(stdout, "%4spacket drop probability = \n", ""); 
 }

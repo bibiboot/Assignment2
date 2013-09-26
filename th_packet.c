@@ -79,6 +79,7 @@ void packet_engine(unsigned long long inter_time,
 {
     pthread_mutex_lock(&m);
     /* Working code for packet goes here */
+    print_emulation_time();
     printf("Packet Thread: %llu\t%llu\t%llu\n", inter_time, token, service_time);
     pthread_mutex_unlock(&m);
     usleep(inter_time);

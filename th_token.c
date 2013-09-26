@@ -18,6 +18,7 @@ void token_engine(unsigned long long token_rate)
     while(1){
         pthread_mutex_lock(&m);
         /* Working code for packet goes here */
+        print_emulation_time();
         printf("Token thread: %llu\n", token_rate);
         pthread_mutex_unlock(&m);
         break;
