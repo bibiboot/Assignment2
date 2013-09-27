@@ -5,7 +5,7 @@
 #define MICRO 1000000
 #define MILLI 1000
 
-struct timeval PKT_BEFORE;
+struct timeval PKT_BEFORE, TKN_BEFORE, TKN_AFTER, TKN_BEFORE_PREV;
 struct timeval PKT_AFTER;
 
 struct timeval pkt_int_arv_time;
@@ -52,7 +52,7 @@ struct timeval add_timeval(struct timeval a,
 struct timeval diff_timeval(struct timeval a,
                            struct timeval b);
 
-struct timeval print_emulation_time(char *mesg);
+struct timeval print_emulation_time(int i, char *mesg);
 
 unsigned long long time_to_sleep(int thread_type, 
                                  unsigned long long inter_time);
