@@ -15,10 +15,11 @@ void* server_init(void *val)
 void server_engine(unsigned long long server_rate)
 {
     while(1){
+        char *mesg = (char *)malloc(sizeof(char*));
+        sprintf(mesg, "Server thread");
         pthread_mutex_lock(&m);
         /* Working code for packet goes here */
-        print_emulation_time();
-        printf("Server thread: %llu\n", server_rate);
+        print_emulation_time(mesg);
         pthread_mutex_unlock(&m);
         break;
     }

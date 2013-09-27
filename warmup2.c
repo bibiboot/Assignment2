@@ -82,11 +82,12 @@ int main(int argc, char *argv[])
     /* Create packet thread */
 
     /* Initialize the time */ 
-    gettimeofday(&START_TIMEVAL, NULL);
-
     fprintf(stdout, "\n");
-    print_emulation_time();
-    fprintf(stdout, "emulation begins\n");
+    gettimeofday(&START_TIMEVAL, NULL);
+    memcpy (&PKT_BEFORE, &START_TIMEVAL, sizeof (PKT_AFTER));
+    memcpy (&PKT_BEFORE, &START_TIMEVAL, sizeof (PKT_BEFORE));
+
+    print_emulation_time("emulation begins");
 
     create_packet_thread(lambda, mu, FILENAME, r, B, P, n);
 
@@ -114,13 +115,13 @@ void create_packet_thread(char *lambda, char* mu,
     /* Create packet thread */
     pthread_create(&packet, 0, packet_init, (void *)pd);
     /* Create Token thread */
-    pthread_create(&token, 0, token_init, (void *)pd);
+    //pthread_create(&token, 0, token_init, (void *)pd);
     /* Create Server thread */
-    pthread_create(&server, 0, server_init, (void *)pd);
+    //pthread_create(&server, 0, server_init, (void *)pd);
    
     pthread_join(packet, 0);
-    pthread_join(token, 0);
-    pthread_join(server, 0);
+    //pthread_join(token, 0);
+    //pthread_join(server, 0);
 }
 
 void print_input(char *lambda, char* mu, char *FILENAME,

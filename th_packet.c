@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "th_packet.h"
 #include "utility.h"
+
 
 void* packet_init(void *val)
 {
@@ -45,6 +47,7 @@ void trace_packet(char *FILENAME,
     int line = 0;
     int result;
     unsigned long long inter_time, token, service_time, num;
+    unsigned long long count = 1;
 
     fp = fopen(FILENAME, "r");
     while(fgets(buffer, 1000, fp)!=NULL){
@@ -64,26 +67,36 @@ void trace_packet(char *FILENAME,
         //printf("%llu-%llu-%llu\n", inter_time, token, service_time);
 
         /* Call Engine */
+        if(line++==0)
+            continue;
         packet_engine(millisec_llto_microsec(inter_time), 
                       token, 
-                      millisec_llto_microsec(service_time));
+                      millisec_llto_microsec(service_time),
+                      count++);
 
-        line++;
     }
 
 }
 
 void packet_engine(unsigned long long inter_time, 
                    unsigned long long token, 
-                   unsigned long long service_time)
+                   unsigned long long service_time,
+                   unsigned long long count)
 {
-    pthread_mutex_lock(&m);
-    /* Working code for packet goes here */
-    print_emulation_time();
+    char MESG[1024];
+    /* Create message. */
+    sprintf(MESG, "p%llu arrives, needs %llu , inter-arrival time = %llums", count, token, inter_time);
+    /* Calculate the actual sleep time. */
+    unsigned long long actual_inter_time = time_to_sleep(0, inter_time);
+    /* Sleep for actual inter-arrival time. */
     printf("Packet Thread: %llu\t%llu\t%llu\n", inter_time, token, service_time);
+    printf("Packet thread sleeping for %llu\n", actual_inter_time);
+    usleep(actual_inter_time);
+    print_emulation_time(MESG);
+    pthread_mutex_lock(&m);
+    //usleep(actual_inter_time);
+    /* Working code for packet goes here */
     pthread_mutex_unlock(&m);
-    usleep(inter_time);
-
 }
 
 void cleanup(FILE *fp)

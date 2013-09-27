@@ -10,6 +10,7 @@ void trace_packet(char *FILENAME,
 
 void packet_engine(unsigned long long inter_time, 
                    unsigned long long token, 
-                   unsigned long long service_time);
+                   unsigned long long service_time,
+                   unsigned long long count);
 
 void cleanup(FILE *fp);

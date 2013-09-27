@@ -15,11 +15,13 @@ void* token_init(void *val)
 
 void token_engine(unsigned long long token_rate)
 {
+    char *mesg = (char *)malloc(sizeof(char*));
+
     while(1){
+        sprintf(mesg, "Token thread");
         pthread_mutex_lock(&m);
         /* Working code for packet goes here */
-        print_emulation_time();
-        printf("Token thread: %llu\n", token_rate);
+        print_emulation_time(mesg);
         pthread_mutex_unlock(&m);
         break;
     }
