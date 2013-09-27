@@ -19,7 +19,7 @@ void server_engine(unsigned long long server_rate)
         sprintf(mesg, "Server thread");
         pthread_mutex_lock(&m);
         /* Working code for packet goes here */
-        print_emulation_time(mesg);
+        print_emulation_time(3, mesg);
         pthread_mutex_unlock(&m);
         break;
     }

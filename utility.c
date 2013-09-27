@@ -90,47 +90,67 @@ struct timeval micro_to_timeval(unsigned long long usec)
     return *a;
 }
 
-struct timeval print_emulation_time(char *mesg)
+struct timeval print_emulation_time(int thread_type, char *mesg)
 {
     //struct timeval current;
     //gettimeofday(&current, NULL);
     //printf("Seconds = %llu\t%llu\n", PKT_BEFORE.tv_sec, PKT_BEFORE.tv_usec);
     //printf("PKT_BEFORE = %llu\n", toMicroSeconds(PKT_BEFORE));
-    struct timeval etime = diff_timeval(PKT_BEFORE, START_TIMEVAL);
+    struct timeval etime;
+    switch(thread_type){
+        case 1:
+            etime = diff_timeval(PKT_BEFORE, START_TIMEVAL);
+            break;
+        case 2:
+            etime = diff_timeval(TKN_BEFORE, START_TIMEVAL);
+            break;
+    }
     fprintf(stdout, "%08llu.%03ldms: ", toMilliSeconds(etime), etime.tv_usec%1000); 
     fprintf(stdout,"%s\n", mesg);
     return etime;
 }
 
 
-
 unsigned long long time_to_sleep(int thread_type, unsigned long long inter_time)
 {
-   /* If thread_type == 0: Packet thread */
-   /* If thread_type == 1: Server thread */
-   /* If thread_type == 0: Token thread */
-   struct timeval temp;
+   /* If thread_type == 1: Packet thread */
+   /* If thread_type == 2: Token thread */
+   /* If thread_type == 3: Server thread */
+   struct timeval temp, wasted, actual_inter_timeval;
    /* Packet thread */
    /* Convert interval time in micro to time val */
    struct timeval inter_time_val = micro_to_timeval(inter_time);
 
-   /* Copy current to PACKET AFTER */
-   //PKT_AFTER = copy_time_val(temp, PKT_AFTER);
-   gettimeofday(&PKT_AFTER, NULL);
-
-   /* Calculate the time wasted */
-   struct timeval wasted = diff_timeval(PKT_AFTER, PKT_BEFORE);
-   //printf("BEFORE = %llu and AFTER=%llu\n", toMicroSeconds(PKT_BEFORE), toMicroSeconds(PKT_AFTER));
-   //printf("wasted = %llu\n", toMicroSeconds(wasted));
+   switch(thread_type){
+       case 1:
+          gettimeofday(&PKT_AFTER, NULL);
+          /* Calculate the time wasted */
+          wasted = diff_timeval(PKT_AFTER, PKT_BEFORE);
+          break;
+       case 2:
+          gettimeofday(&TKN_AFTER, NULL);
+          /* Calculate the time wasted */
+          wasted = diff_timeval(TKN_AFTER, TKN_BEFORE);
+          break;
+    }
+   
    /* Calculate the actual inter time in timeval terms. */
-   struct timeval actual_inter_timeval = diff_timeval(inter_time_val, wasted);
+   actual_inter_timeval = diff_timeval(inter_time_val, wasted);
 
-   /* Get the next PCKT BEFORE */
    /* Get current time */
    gettimeofday(&temp, NULL);
    /* Get to get the correct before time */
    /* Irrespective of when the thread will be awake. */ 
-   PKT_BEFORE = add_timeval(temp, actual_inter_timeval);
+   switch(thread_type){
+       case 1: 
+           PKT_BEFORE = add_timeval(temp, actual_inter_timeval);
+           break;
+       case 2: 
+           memcpy(&TKN_BEFORE_PREV, &TKN_BEFORE, sizeof(TKN_BEFORE));
+           TKN_BEFORE = add_timeval(temp, actual_inter_timeval);
+           printf("INTER_ARRIVAL = %llu\n", toMicroSeconds(diff_timeval(TKN_BEFORE, TKN_BEFORE_PREV)));
+           break;
+    }
    /* Convert the actual time val to microseconds and return */
    return toMicroSeconds(actual_inter_timeval); 
 }

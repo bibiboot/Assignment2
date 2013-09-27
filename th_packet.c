@@ -92,7 +92,7 @@ void packet_engine(unsigned long long inter_time,
     printf("Packet Thread: %llu\t%llu\t%llu\n", inter_time, token, service_time);
     printf("Packet thread sleeping for %llu\n", actual_inter_time);
     usleep(actual_inter_time);
-    print_emulation_time(MESG);
+    print_emulation_time(1, MESG);
     pthread_mutex_lock(&m);
     //usleep(actual_inter_time);
     /* Working code for packet goes here */
