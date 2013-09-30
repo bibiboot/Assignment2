@@ -12,7 +12,9 @@ void print_input(char *lambda, char* mu, char *FILENAME,
 void create_packet_thread(char *lambda, char* mu,
                     char *FILENAME, char *r,
                     char *B, char *P, char *n);
-void print_stats();
+void print_stats(struct timeval emulation_time);
+void init_stats();
+void block_signal();
 
 
 /* Initialize mutex */
@@ -24,17 +26,21 @@ int main(int argc, char *argv[])
     pthread_mutex_init(&m, 0);
 
     int i;
-    FILE *fp ;
-    char buffer[1024];
-    int line = 0;
-    int result, inter_time, token, service_time, num;
-    char *lambda = "2";
-    char *mu = "4";
-    char *r = "4";
+    char *lambda = "0.5";
+    char *mu = "0.35";
+    char *r = "1.5";
     char *B = "10";
     char *P = "3";
     char *n = "20";
     char *FILENAME = NULL;
+    AVAILABLE = 0;
+    DROPPED = 0;
+    DROPPED_PKT = 0;
+    TOTAL = 0;
+    struct timeval end;
+    SERVER_DIE = 0;
+    PACKET_DEAD = 0;
+    TOKEN_DEAD = 0;
 
     /* Read Options */
     for(i=1;i<argc;i=i+2){
@@ -68,32 +74,42 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
-        i =1;
+        fprintf(stderr, "Wrong command line argument\n");
+        exit(0);
         break;
      }
 
-     /* Incase of error in file */
-     if (i==1){
-        fprintf(stderr, "Wrong command line argument\n");
-        exit(0);
-     }
+    /*Allocate memory to list*/
+    Q1 = malloc(sizeof(My402List));
+    Q2 = malloc(sizeof(My402List));
+    /*Initilialize the list*/
+    My402ListInit(Q1);
+    My402ListInit(Q2);
 
+    /* Block Signal from Main thread */
+    block_signal();
+   
     print_input(lambda, mu, FILENAME, r, B, P, n);
     /* Create packet thread */
 
-    /* Initialize the time */ 
     fprintf(stdout, "\n");
-    gettimeofday(&START_TIMEVAL, NULL);
-    memcpy (&PKT_BEFORE, &START_TIMEVAL, sizeof (PKT_AFTER));
-    memcpy (&TKN_BEFORE, &START_TIMEVAL, sizeof (PKT_BEFORE));
-    memcpy (&TKN_BEFORE_PREV, &START_TIMEVAL, sizeof (PKT_BEFORE));
+    /* Initialize the stats */ 
+    init_stats();
 
-    print_emulation_time(1, "emulation begins");
+    struct timeval current = diff_timeval(START_TIMEVAL, PKT_BEFORE);
+    fprintf(stdout, "%08llu.%03ldms: emulation begins\n",
+            toMilliSeconds(current), current.tv_usec%MILLI);
 
+    /* Create threads */
     create_packet_thread(lambda, mu, FILENAME, r, B, P, n);
 
+    gettimeofday(&end, NULL);
+    /* Find the emulation of the program */
+    struct timeval emulation_time = diff_timeval(end, START_TIMEVAL);
+
     /* Print statistics */
-    print_stats();
+    print_stats(emulation_time);
+
     return(0);
 }
 
@@ -111,18 +127,17 @@ void create_packet_thread(char *lambda, char* mu,
     pd->P = P;
     pd->n = n;
    
-    pthread_t packet, token, server;
-    
     /* Create packet thread */
-    //pthread_create(&packet, 0, packet_init, (void *)pd);
+    pthread_create(&PACKET, 0, packet_init, (void *)pd);
     /* Create Token thread */
-    pthread_create(&token, 0, token_init, (void *)pd);
+    pthread_create(&TOKEN, 0, token_init, (void *)pd);
     /* Create Server thread */
-    //pthread_create(&server, 0, server_init, (void *)pd);
+    pthread_create(&SERVER, 0, server_init, (void *)pd);
    
-    //pthread_join(packet, 0);
-    pthread_join(token, 0);
-    //pthread_join(server, 0);
+    pthread_join(PACKET, 0);
+    pthread_join(TOKEN, 0);
+    pthread_join(SERVER, 0);
+
 }
 
 void print_input(char *lambda, char* mu, char *FILENAME,
@@ -138,19 +153,54 @@ void print_input(char *lambda, char* mu, char *FILENAME,
          fprintf(stdout, "%4stsfile = %s\n", "",FILENAME);
 }
 
-void print_stats()
+void print_stats(struct timeval emulation_time)
 {
     fprintf(stdout, "\nStatistics:\n\n");
-    fprintf(stdout, "%4saverage packet inter-arrival time = \n", "");
-    fprintf(stdout, "%4saverage packet service time = \n\n", ""); 
+    if (NUM_PACKETS == 0)
+        fprintf(stdout, 
+               "%4saverage packet inter-arrival time = NA ( No packet arrived at this facility )\n", 
+               "");
+    else
+        fprintf(stdout, "%4saverage packet inter-arrival time = %.6gs\n", 
+            "", (double)((PKT_INTV_ARV_TIME*MICRO)/NUM_PACKETS));
+    fprintf(stdout, "%4saverage packet service time = %.6gs\n\n", "", 
+            (double)((toMicroSeconds(SERVICE_TIME))/NUM_PACKETS)); 
 
-    fprintf(stdout, "%4saverage number of packets in Q1 = \n", ""); 
-    fprintf(stdout, "%4saverage number of packets in Q2 = \n", ""); 
-    fprintf(stdout, "%4saverage number of packets at S = \n\n", ""); 
+    fprintf(stdout, "%4saverage number of packets in Q1 = %.6g\n", "",
+            ((double)(toMicroSeconds(TIME_AT_Q1)))/(toMicroSeconds(emulation_time))); 
+    fprintf(stdout, "%4saverage number of packets in Q2 = %.6g\n", "",
+            ((double)(toMicroSeconds(TIME_AT_Q2)))/(toMicroSeconds(emulation_time))); 
+    fprintf(stdout, "%4saverage number of packets at S = %.6g\n", "",
+            ((double)(toMicroSeconds(TIME_AT_S)))/(toMicroSeconds(emulation_time))); 
 
-    fprintf(stdout, "%4saverage time a packet spent in system = \n", ""); 
+    fprintf(stdout, "%4saverage time a packet spent in system = %.6gs\n", "",
+            ((double)(toMicroSeconds(SPENT)))/(toMicroSeconds(emulation_time))); 
     fprintf(stdout, "%4sstandard deviation for time spent in system = \n\n", ""); 
 
-    fprintf(stdout, "%4stoken drop probability = \n", ""); 
-    fprintf(stdout, "%4spacket drop probability = \n", ""); 
+    if(TOTAL == 0)
+        fprintf(stdout, "%4stoken drop probability = NA ( No tokens were produced )", ""); 
+    else
+        fprintf(stdout, "%4stoken drop probability = %.6g\n", "", (double)DROPPED/TOTAL); 
+
+    if(NUM_PACKETS == 0)
+        fprintf(stdout, "%4spacket drop probability = NA ( No packets were produced )", "" ); 
+    else 
+        fprintf(stdout, "%4spacket drop probability = %.6g\n", "", (double)DROPPED_PKT/NUM_PACKETS); 
+}
+
+void init_stats(){
+    /* Initialize the global stats variables */
+    gettimeofday(&START_TIMEVAL, NULL);
+    memcpy (&PKT_BEFORE, &START_TIMEVAL, sizeof (PKT_BEFORE));
+    memcpy (&PKT_BEFORE_PREV, &START_TIMEVAL, sizeof (PKT_BEFORE));
+    memcpy (&TKN_BEFORE, &START_TIMEVAL, sizeof (PKT_BEFORE));
+    memcpy (&TKN_BEFORE_PREV, &START_TIMEVAL, sizeof (PKT_BEFORE));
+}
+
+void block_signal()
+{
+    sigemptyset(&NEW);
+    sigaddset(&NEW, SIGINT);
+
+    pthread_sigmask(SIG_BLOCK, &NEW, NULL);
 }
