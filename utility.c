@@ -85,6 +85,11 @@ unsigned long long toMicroSeconds(struct timeval a)
     return (a.tv_sec*MICRO) + a.tv_usec;
 }
 
+double toSeconds(struct timeval a)
+{
+    return (a.tv_sec) + (double)a.tv_usec/MICRO;
+}
+
 struct timeval micro_to_timeval(unsigned long long usec)
 {
     struct timeval *a = malloc(sizeof(struct timeval));
@@ -116,3 +121,10 @@ struct timeval copy_time_val(struct timeval source, struct timeval dest)
     dest.tv_usec = dest.tv_usec;
     return dest;
 }
+
+double square(double a)
+{
+    return a*a;
+}
+
+

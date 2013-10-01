@@ -20,8 +20,8 @@ pthread_t PACKET, SERVER, TOKEN;
 sigset_t NEW;
 struct sigaction ACT, ACT_TKN;
 
-unsigned long long PKT_INTV_ARV_TIME;
-struct timeval TIME_AT_Q1, TIME_AT_Q2, TIME_AT_S, SPENT, SERVICE_TIME;
+struct timeval TIME_AT_Q1, TIME_AT_Q2, TIME_AT_S, SPENT, SERVICE_TIME, PKT_INTV_ARV_TIME;
+double SQ_SERVICE_TIME;
 int NUM_PACKETS ;
 int SERVER_DIE ;
 
@@ -84,3 +84,8 @@ unsigned long long time_to_sleep(unsigned long long inter_time,
                            struct timeval b);
 
 struct timeval copy_time_val(struct timeval source, struct timeval dest);
+
+double toSeconds(struct timeval a);
+
+double square(double a);
+

@@ -1,5 +1,5 @@
 warmup2: warmup2.o th_packet.o  th_token.o th_server.o utility.o my402list.o
-	gcc -o warmup2 -g warmup2.o th_packet.o th_token.o th_server.o utility.o my402list.o -lpthread
+	gcc -o warmup2 -g warmup2.o th_packet.o th_token.o th_server.o utility.o my402list.o -lpthread -lm
 
 warmup2.o: warmup2.c th_packet.h th_token.h utility.h my402list.h th_server.h
 	gcc -g -c -Wall warmup2.c th_packet.c th_token.c th_server.c utility.c my402list.c

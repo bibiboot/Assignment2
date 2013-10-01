@@ -66,6 +66,7 @@ void server_engine()
         serv_duration= diff_timeval(send, q2end);
         TIME_AT_S = add_timeval(TIME_AT_S, serv_duration);
         SERVICE_TIME = add_timeval(SERVICE_TIME, serv_duration);
+        SQ_SERVICE_TIME = SQ_SERVICE_TIME + square(toSeconds(serv_duration));
 
         /* PRINT */
         fprintf(stdout,

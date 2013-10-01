@@ -18,7 +18,6 @@ void* packet_init(void *val)
 
     /* Handler for thread */
     /* Decision to go to deter or trace */
-    PKT_INTV_ARV_TIME = 0;
     NUM_PACKETS = 0;
     //unsigned long long inter_time = MILLI/to_ll(((MyPacketData*)val)->lambda);
     unsigned long long inter_time = MILLI/atof(((MyPacketData*)val)->lambda);
@@ -130,10 +129,10 @@ void packet_engine(unsigned long long inter_time,
 
     /* Calculate arrival time for stats */
     struct timeval inter_timeval = diff_timeval(PKT_BEFORE, PKT_BEFORE_PREV);
-    unsigned long long inter_arr_time = toMicroSeconds(inter_timeval);
+    //unsigned long long inter_arr_time = toMicroSeconds(inter_timeval);
 
     /* Add to statistics */
-    PKT_INTV_ARV_TIME+=inter_arr_time;
+    PKT_INTV_ARV_TIME = add_timeval(PKT_INTV_ARV_TIME, inter_timeval);
     memcpy(&PKT_BEFORE_PREV, &PKT_BEFORE, sizeof(PKT_BEFORE));
 
     /* Check if packet has to be dropped or not */
@@ -238,9 +237,9 @@ void interrupt()
     pthread_kill(TOKEN, SIGUSR1);
 
     while(!My402ListEmpty(Q2)){
-        My402ListElem *elem = My402ListFirst(Q1);
+        My402ListElem *elem = My402ListFirst(Q2);
         My402dataElem *topEle = (My402dataElem*)(elem->obj);
-        My402ListUnlink(Q1, elem);
+        My402ListUnlink(Q2, elem);
 
         TIME_AT_Q1 = diff_timeval(TIME_AT_Q1, topEle->q1duration);
     }

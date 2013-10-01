@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <math.h>
 #include "th_packet.h"
 #include "th_token.h"
 #include "th_server.h"
@@ -161,10 +162,16 @@ void print_stats(struct timeval emulation_time)
                "%4saverage packet inter-arrival time = NA ( No packet arrived at this facility )\n", 
                "");
     else
-        fprintf(stdout, "%4saverage packet inter-arrival time = %.6gs\n", 
-            "", (double)((PKT_INTV_ARV_TIME*MICRO)/NUM_PACKETS));
-    fprintf(stdout, "%4saverage packet service time = %.6gs\n\n", "", 
-            (double)((toMicroSeconds(SERVICE_TIME))/NUM_PACKETS)); 
+        fprintf(stdout, "%4saverage packet inter-arrival time = %.6gsec\n", 
+            "", (toSeconds(PKT_INTV_ARV_TIME)/NUM_PACKETS));
+
+    if (NUM_PACKETS == 0)
+        fprintf(stdout, 
+               "%4saverage packet service time = NA ( No packet is still serviced )\n", 
+               "");
+    else
+        fprintf(stdout, "%4saverage packet service time = %.6gsec\n\n", "", 
+                toSeconds(SERVICE_TIME)/NUM_PACKETS);
 
     fprintf(stdout, "%4saverage number of packets in Q1 = %.6g\n", "",
             ((double)(toMicroSeconds(TIME_AT_Q1)))/(toMicroSeconds(emulation_time))); 
@@ -173,9 +180,10 @@ void print_stats(struct timeval emulation_time)
     fprintf(stdout, "%4saverage number of packets at S = %.6g\n", "",
             ((double)(toMicroSeconds(TIME_AT_S)))/(toMicroSeconds(emulation_time))); 
 
-    fprintf(stdout, "%4saverage time a packet spent in system = %.6gs\n", "",
-            ((double)(toMicroSeconds(SPENT)))/(toMicroSeconds(emulation_time))); 
-    fprintf(stdout, "%4sstandard deviation for time spent in system = \n\n", ""); 
+    fprintf(stdout, "%4saverage time a packet spent in system = %.6gsec\n", "",
+            toSeconds(SPENT)/NUM_PACKETS); 
+    fprintf(stdout, "%4sstandard deviation for time spent in system = %.6gsec\n\n", 
+            "", sqrt((SQ_SERVICE_TIME - toSeconds(SERVICE_TIME))/NUM_PACKETS)); 
 
     if(TOTAL == 0)
         fprintf(stdout, "%4stoken drop probability = NA ( No tokens were produced )", ""); 
