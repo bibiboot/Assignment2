@@ -12,23 +12,30 @@ My402dataElem* create(int count, unsigned long long token,
 void* packet_init(void *val)
 {
     /* Unblock Signal */
-    ACT.sa_handler = interrupt;
-    sigaction(SIGINT, &ACT, NULL);
-    pthread_sigmask(SIG_UNBLOCK, &NEW, NULL);
+
+    ACT_PKT.sa_handler = interrupt;
+    sigaction(SIGUSR2, &ACT_PKT, NULL);
 
     /* Handler for thread */
     /* Decision to go to deter or trace */
-    NUM_PACKETS = 0;
+    TOTAL_PACKETS = 0;
     //unsigned long long inter_time = MILLI/to_ll(((MyPacketData*)val)->lambda);
-    unsigned long long inter_time = MILLI/atof(((MyPacketData*)val)->lambda);
-    if(inter_time > (10*MILLI))
-        inter_time = 10*MILLI;
+    //unsigned long long inter_time_milli = MILLI/atof(((MyPacketData*)val)->lambda);
+    unsigned long long inter_time_micro = MICRO/atof(((MyPacketData*)val)->lambda);
+    if (inter_time_micro == 0)
+        inter_time_micro = 1;
+    //printf("%llu Value = \n", inter_time);
+    if(inter_time_micro > (10*MICRO))
+        inter_time_micro = 10*MICRO;
     
     unsigned long long token = to_ll(((MyPacketData*)val)->P);
     //unsigned long long service_time = to_ll(((MyPacketData*)val)->mu);
-    unsigned long long service_time = MILLI/atof(((MyPacketData*)val)->mu);
-    if(service_time >= (10*MILLI))
-        service_time = 10*MILLI;
+    //unsigned long long service_time_milli = MILLI/atof(((MyPacketData*)val)->mu);
+    unsigned long long service_time_micro = MICRO/atof(((MyPacketData*)val)->mu);
+    if (service_time_micro == 0)
+        service_time_micro = 1;
+    if(service_time_micro > (10*MICRO))
+        service_time_micro = 10*MICRO;
 
     unsigned long long num = to_ll(((MyPacketData*)val)->n);
     unsigned long long B = to_ll(((MyPacketData*)val)->B);
@@ -37,14 +44,11 @@ void* packet_init(void *val)
     
     /*Check if deterministic or trace*/
     if (FILENAME == NULL)
-        deter_packet(inter_time, token, service_time, num);
+        deter_packet(inter_time_micro, token, service_time_micro, num);
     else
         trace_packet(FILENAME, B);
 
-    /* Kill Token Thread and Server thread */
-    pthread_mutex_lock(&m);
-    PACKET_DEAD = 1;
-    pthread_mutex_unlock(&m);
+    SERVER_DIE = 1;
 
     pthread_exit(0);
 
@@ -59,9 +63,9 @@ void deter_packet(unsigned long long inter_time,
     /* DETERMINISTIC */
     unsigned long long count = 1;
     for(count=1; count<=num;count++){
-        packet_engine(millisec_llto_microsec(inter_time), 
+        packet_engine(inter_time, 
                       token, 
-                      millisec_llto_microsec(service_time),
+                      service_time,
                       count);
     }
 }
@@ -75,25 +79,29 @@ void trace_packet(char *FILENAME,
     char buffer[1024];
     int line = 0;
     int result;
-    unsigned long long inter_time, token, service_time, num;
+    unsigned long long inter_time, token, service_time;
+    char inter_time_s[20], token_s[20], service_time_s[20], num[20];
     unsigned long long count = 1;
 
     fp = fopen(FILENAME, "r");
     while(fgets(buffer, 1000, fp)!=NULL){
         /* First line is the number of packets */
         if(line==0)
-            result = sscanf(buffer, "%llu", &num);
-        else
-            result = sscanf(buffer, "%llu\t%llu\t%llu", &inter_time, &token, &service_time);
+            result = sscanf(buffer, "%s", num);
+        else{
+            result = sscanf(buffer, "%[^ ] %[^ ] %s", inter_time_s, token_s, service_time_s);
+            //printf("%d-%s-%s-%s\n", result, inter_time_s, token_s, service_time_s);
+        }
 
+        //printf("%d--%d\n", result, line);
         /* Check for file format */
-        if (check_format(result, line, inter_time, token, service_time) == -1){
+        if (check_format(result, line, inter_time_s, token_s, service_time_s,num) == -1){
             fprintf(stderr, "Error in tsfile format\n");
-            //fp.fclose();
             exit(0);
         }
-        //printf("%s,%d", buffer,result);
-        //printf("%llu-%llu-%llu\n", inter_time, token, service_time);
+        inter_time = atoll(inter_time_s);
+        token = atoll(token_s);
+        service_time = atoll(service_time_s);
 
         /* Call Engine */
         if(line++==0)
@@ -104,7 +112,59 @@ void trace_packet(char *FILENAME,
                       count++);
 
     }
+    fclose(fp);
    
+}
+
+
+void print_packet_arrived(unsigned long long token)
+{
+    gettimeofday(&PKT_BEFORE, NULL);
+
+    /* Calculate arrival time for stats */
+    struct timeval inter_timeval = diff_timeval(PKT_BEFORE, PKT_BEFORE_PREV);
+
+    struct timeval etime = diff_timeval(PKT_BEFORE, START_TIMEVAL);
+    memcpy(&PKT_BEFORE_PREV, &PKT_BEFORE, sizeof(PKT_BEFORE));
+    PKT_INTV_ARV_TIME = add_timeval(PKT_INTV_ARV_TIME, inter_timeval);
+
+    /* Print */
+    fprintf(stdout,"%08llu.%03ldms: p%llu arrives, needs %llu , inter-arrival time = %llu.%03ldms\n", 
+            toMilliSeconds(etime), etime.tv_usec%MILLI, TOTAL_PACKETS, token, 
+            toMilliSeconds(inter_timeval), inter_timeval.tv_usec%MILLI);
+    
+}
+
+void print_packet_dropped(unsigned long long token)
+{
+    gettimeofday(&PKT_BEFORE, NULL);
+
+    /* Calculate arrival time for stats */
+    struct timeval inter_timeval = diff_timeval(PKT_BEFORE, PKT_BEFORE_PREV);
+
+    struct timeval etime = diff_timeval(PKT_BEFORE, START_TIMEVAL);
+    memcpy(&PKT_BEFORE_PREV, &PKT_BEFORE, sizeof(PKT_BEFORE));
+
+    PKT_INTV_ARV_TIME = add_timeval(PKT_INTV_ARV_TIME, inter_timeval);
+
+    fprintf(stdout, "%08llu.%03ldms: packet p%llu arrives, needs %llu tokens, dropped\n", 
+            toMilliSeconds(etime), etime.tv_usec%MILLI, TOTAL_PACKETS, token);
+}
+
+void pendQ1_stats(struct timeval q1start,
+                 unsigned long long pack_num)
+{
+    /* Add statistics */
+    struct timeval current;
+    gettimeofday(&current, NULL);
+    struct timeval q1end = diff_timeval(current, START_TIMEVAL);
+    struct timeval q1duration = diff_timeval(q1end, q1start);
+    TIME_AT_Q1 = add_timeval(TIME_AT_Q1, q1duration);
+
+    fprintf(stdout,
+            "%08llu.%03ldms: p%llu leaves Q1, time in Q1 = %llu.%03ldms, token bucket has %llu token\n",
+            toMilliSeconds(q1end), q1end.tv_usec%1000, pack_num,
+            toMilliSeconds(q1duration), q1duration.tv_usec%MILLI, AVAILABLE);
 }
 
 
@@ -113,141 +173,85 @@ void packet_engine(unsigned long long inter_time,
                    unsigned long long service_time,
                    unsigned long long count)
 {
-    int broadcast = 0;
-    My402dataElem *topEle;
-    struct timeval etime, current, q1start, q1end, q1duration;
+        My402ListElem *elem;
+        My402dataElem *topEle;
+        struct timeval etime, current;
+        int broadcast = 0;
 
-    /* Calculate the actual sleep time. */
-    unsigned long long actual_inter_time = time_to_sleep(inter_time, PKT_BEFORE);
+        /* Calculate the actual sleep time. */
+        unsigned long long actual_inter_time = time_to_sleep(inter_time, PKT_BEFORE);
+        /* Sleep */
+        usleep(actual_inter_time);
 
-    /* Sleep */
-    usleep(actual_inter_time);
+        /* Create a packet */
+        My402dataElem *dataE = create(count, token, service_time);
 
-    /* Get Current time */
-    gettimeofday(&PKT_BEFORE, NULL);
-    etime = diff_timeval(PKT_BEFORE, START_TIMEVAL);
+        /*LOCK*/
+        pthread_mutex_lock(&m);
 
-    /* Calculate arrival time for stats */
-    struct timeval inter_timeval = diff_timeval(PKT_BEFORE, PKT_BEFORE_PREV);
-    //unsigned long long inter_arr_time = toMicroSeconds(inter_timeval);
+        /* Start time */
+        gettimeofday(&current, NULL);
+        struct timeval q1start = diff_timeval(current, START_TIMEVAL);
+        dataE->q1start = q1start;
+          
+        TOTAL_PACKETS++;
 
-    /* Add to statistics */
-    PKT_INTV_ARV_TIME = add_timeval(PKT_INTV_ARV_TIME, inter_timeval);
-    memcpy(&PKT_BEFORE_PREV, &PKT_BEFORE, sizeof(PKT_BEFORE));
+        if(token < MAX_TOKEN){
+            print_packet_arrived(token);
+        } else {
+            DROPPED_PKT++;
+            print_packet_dropped(token);
+        }
 
-    /* Check if packet has to be dropped or not */
-    if(token > MAX_TOKEN){
-        /* PRINT */
-        fprintf(stdout, "%08llu.%03ldms: packet p%llu arrives, needs %llu tokens, dropped\n", 
-                toMilliSeconds(etime), etime.tv_usec%MILLI, count, token);
-        DROPPED_PKT++;
-    }
-    else{
-        /* Print */
-        fprintf(stdout,"%08llu.%03ldms: p%llu arrives, needs %llu , inter-arrival time = %llu.%03ldms\n", 
-            toMilliSeconds(etime), etime.tv_usec%MILLI, count, token, 
-            toMilliSeconds(inter_timeval), inter_timeval.tv_usec%MILLI);
-   }
+        /* Add in Q1 */
+        My402ListAppend(Q1, (void*)dataE);
 
-    NUM_PACKETS++;
+        /* Check if move from Q1 to Q2 is allowed */
+        /* Get top of the Q1 */
+        elem = My402ListFirst(Q1);
+        topEle = (My402dataElem*)(elem->obj);
 
-    /* Create a packet */
-    My402dataElem *dataE = create(count, token, service_time);
+        /* Check if their is enough token */
+        if (topEle->token <= AVAILABLE){
+            /* Remove it from Q1 */
+            My402ListUnlink(Q1, elem);
 
-    /* Lock the lutex */
-    pthread_mutex_lock(&m);
+            /* Decrement token */
+            AVAILABLE-=topEle->token;
 
-    /* Start time */
-    gettimeofday(&current, NULL);
-    q1start = diff_timeval(current, START_TIMEVAL);
-    dataE->q1start = q1start;
+            /* Add stats */
+            pendQ1_stats(topEle->q1start, topEle->count);
 
-    /* Add in Q1 */
-    My402ListAppend(Q1, (void*)dataE);
 
-    /* PRINT */
-    fprintf(stdout, "%08llu.%03ldms: p%llu enters Q1\n", 
-            toMilliSeconds(q1start), q1start.tv_usec%1000, count);
+            /* Check if Q2 is empty */
+            if(My402ListEmpty(Q2))
+                broadcast = 1;
 
-    /* Get top element */
-    My402ListElem *elem = My402ListFirst(Q1);
-    topEle = (My402dataElem*)(elem->obj);
+            gettimeofday(&current, NULL);
+            etime = diff_timeval(current, START_TIMEVAL);
 
-    /* Check for threshold tokens in bucket */
-    if (topEle->token<= AVAILABLE){
+            /* Set start time in Q2 */
+            topEle->q2start = etime;
 
-       /* Check if Q2 is empty */
-       if(My402ListEmpty(Q2) == 0){
-          /* Broadcast server once the process is done */
-          broadcast = 1;
-       }
+            /* Add to Q2 */
+            My402ListAppend(Q2, (void*)topEle);
 
-       /* Packet leaves Q1 */
-       /* Remove top element */
-       My402ListUnlink(Q1, elem);
+            /* PRINT */
+            fprintf(stdout, "%08llu.%03ldms: p%llu enters Q2\n",
+                    toMilliSeconds(etime), etime.tv_usec%MILLI, topEle->count);
 
-       /* Add to statistics */
-       gettimeofday(&current, NULL);
-       q1end = diff_timeval(current, START_TIMEVAL);
-       q1duration = diff_timeval(q1end, topEle->q1start);
-       TIME_AT_Q1 = add_timeval(TIME_AT_Q1, q1duration);
-
-       /* Reduce token */
-       AVAILABLE-=topEle->token;
-
-       /* PRINT */
-       fprintf(stdout, 
-              "%08llu.%03ldms: p%llu leaves Q1, time in Q1 = %llu.%03ldms, token bucket has %llu token\n", 
-              toMilliSeconds(q1end), q1end.tv_usec%1000, topEle->count,
-              toMilliSeconds(q1duration), q1duration.tv_usec%MILLI, AVAILABLE);
-
-       /* Move from Q1 to Q2 */
-       /* Add to statistics */
-       gettimeofday(&current, NULL);
-       etime = diff_timeval(current, START_TIMEVAL);
-
-       /* Set start time in Q2 */
-       dataE->q2start = etime;
-       dataE->q1duration = q1duration;
-
-       /* Add to Q2 */
-       My402ListAppend(Q2, (void*)dataE);
-
-       /* PRINT */
-       fprintf(stdout, "%08llu.%03ldms: p%llu enters Q2\n", 
-              toMilliSeconds(etime), q1start.tv_usec%MILLI, topEle->count);
-
-       if(broadcast == 1){
-           /* If yes then broadcast signal to server */
-           pthread_cond_broadcast(&cond_t);
-       }
-    }
-        
-    /* Unlock mutex */
-    pthread_mutex_unlock(&m);
+           if(broadcast == 1)
+                pthread_cond_broadcast(&cond_t);
+        }
+        pthread_mutex_unlock(&m);
 }
 
 void interrupt()
 {
-    /*Clean up resources of packet thread*/
-    printf("--------------Ctrl+C Recieved----------------\n");   
-    /*Start alarm to server and token thread*/
-    SERVER_DIE = 1;
-    pthread_cond_broadcast(&cond_t);
-    pthread_kill(TOKEN, SIGUSR1);
-
-    while(!My402ListEmpty(Q2)){
-        My402ListElem *elem = My402ListFirst(Q2);
-        My402dataElem *topEle = (My402dataElem*)(elem->obj);
-        My402ListUnlink(Q2, elem);
-
-        TIME_AT_Q1 = diff_timeval(TIME_AT_Q1, topEle->q1duration);
-    }
-    
-    /* Clear the list */
-    My402ListUnlinkAll(Q1);
-
-    printf("--------------Packet thread is terminating----------------\n");   
+    //printf("PACKET HANDLER\n");   
+    /* Denote server to die*/
+    pthread_mutex_unlock(&m);
+    //printf("--------------Packet thread is terminating----------------\n");   
     pthread_exit(0);
 }
 

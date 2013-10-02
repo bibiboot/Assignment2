@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <math.h>
 #include "th_packet.h"
 #include "th_token.h"
 #include "th_server.h"
@@ -13,10 +12,10 @@ void print_input(char *lambda, char* mu, char *FILENAME,
 void create_packet_thread(char *lambda, char* mu,
                     char *FILENAME, char *r,
                     char *B, char *P, char *n);
-void print_stats(struct timeval emulation_time);
 void init_stats();
 void block_signal();
-
+void unblock_SIGNAL();
+void interrupt_main();
 
 /* Initialize mutex */
 
@@ -38,36 +37,58 @@ int main(int argc, char *argv[])
     DROPPED = 0;
     DROPPED_PKT = 0;
     TOTAL = 0;
-    struct timeval end;
+    TOTAL_SERVED = 0;
     SERVER_DIE = 0;
-    PACKET_DEAD = 0;
-    TOKEN_DEAD = 0;
 
     /* Read Options */
     for(i=1;i<argc;i=i+2){
         if (i%2!=0 && argv[i][0]=='-'){
             if ((strcmp(argv[i]+1, "lambda") == 0) && ((i+1)<argc)){
                 lambda = argv[i+1];
+                if(check_num(lambda)== -1){
+                    fprintf(stderr, "Value of lambda is not a number.\n");
+                    exit(0);
+                }
                 continue;
             }
             else if ((strcmp(argv[i]+1, "mu") == 0) && ((i+1)<argc)){
                 mu = argv[i+1];
+                if(check_num(mu)== -1){
+                    fprintf(stderr, "Value of mu is not a number.\n");
+                    exit(0);
+                }
                 continue;
             }
             else if ((strcmp(argv[i]+1, "r") == 0) && ((i+1)<argc)){
                 r = argv[i+1];
+                if(check_num(r)== -1){
+                    fprintf(stderr, "Value of r is not a number.\n");
+                    exit(0);
+                }
                 continue;
             }
             else if ((strcmp(argv[i]+1, "B") == 0) && ((i+1)<argc)){
                 B = argv[i+1];
+                if(isNum(B)==-1){
+                    fprintf(stderr, "Value of B is not a number.\n");
+                    exit(0);
+                }
                 continue;
             }
             else if((strcmp(argv[i]+1, "P") == 0) && ((i+1)<argc)){
                 P = argv[i+1];
+                if(isNum(P) == -1){
+                    fprintf(stderr, "Value of P is not a number.\n");
+                    exit(0);
+                }
                 continue;
             }
             else if ((strcmp(argv[i]+1, "n") == 0) && ((i+1)<argc)){
                 n = argv[i+1];
+                if(isNum(n)==-1){
+                    fprintf(stderr, "Value of n is not a number.\n");
+                    exit(0);
+                }
                 continue;
             }
             else if ((strcmp(argv[i]+1, "t") == 0) && ((i+1)<argc)){
@@ -89,6 +110,16 @@ int main(int argc, char *argv[])
 
     /* Block Signal from Main thread */
     block_signal();
+
+    if(FILENAME!=NULL){
+        FILE *fp = fopen(FILENAME, "r");
+        if(fp==NULL){
+            perror("Error: Unable to open the file ");
+            exit(0);
+        }
+        fclose(fp);
+    }
+
    
     print_input(lambda, mu, FILENAME, r, B, P, n);
     /* Create packet thread */
@@ -104,12 +135,8 @@ int main(int argc, char *argv[])
     /* Create threads */
     create_packet_thread(lambda, mu, FILENAME, r, B, P, n);
 
-    gettimeofday(&end, NULL);
-    /* Find the emulation of the program */
-    struct timeval emulation_time = diff_timeval(end, START_TIMEVAL);
-
     /* Print statistics */
-    print_stats(emulation_time);
+    //print_stats();
 
     return(0);
 }
@@ -134,6 +161,8 @@ void create_packet_thread(char *lambda, char* mu,
     pthread_create(&TOKEN, 0, token_init, (void *)pd);
     /* Create Server thread */
     pthread_create(&SERVER, 0, server_init, (void *)pd);
+
+    unblock_SIGNAL();
    
     pthread_join(PACKET, 0);
     pthread_join(TOKEN, 0);
@@ -154,47 +183,6 @@ void print_input(char *lambda, char* mu, char *FILENAME,
          fprintf(stdout, "%4stsfile = %s\n", "",FILENAME);
 }
 
-void print_stats(struct timeval emulation_time)
-{
-    fprintf(stdout, "\nStatistics:\n\n");
-    if (NUM_PACKETS == 0)
-        fprintf(stdout, 
-               "%4saverage packet inter-arrival time = NA ( No packet arrived at this facility )\n", 
-               "");
-    else
-        fprintf(stdout, "%4saverage packet inter-arrival time = %.6gsec\n", 
-            "", (toSeconds(PKT_INTV_ARV_TIME)/NUM_PACKETS));
-
-    if (NUM_PACKETS == 0)
-        fprintf(stdout, 
-               "%4saverage packet service time = NA ( No packet is still serviced )\n", 
-               "");
-    else
-        fprintf(stdout, "%4saverage packet service time = %.6gsec\n\n", "", 
-                toSeconds(SERVICE_TIME)/NUM_PACKETS);
-
-    fprintf(stdout, "%4saverage number of packets in Q1 = %.6g\n", "",
-            ((double)(toMicroSeconds(TIME_AT_Q1)))/(toMicroSeconds(emulation_time))); 
-    fprintf(stdout, "%4saverage number of packets in Q2 = %.6g\n", "",
-            ((double)(toMicroSeconds(TIME_AT_Q2)))/(toMicroSeconds(emulation_time))); 
-    fprintf(stdout, "%4saverage number of packets at S = %.6g\n", "",
-            ((double)(toMicroSeconds(TIME_AT_S)))/(toMicroSeconds(emulation_time))); 
-
-    fprintf(stdout, "%4saverage time a packet spent in system = %.6gsec\n", "",
-            toSeconds(SPENT)/NUM_PACKETS); 
-    fprintf(stdout, "%4sstandard deviation for time spent in system = %.6gsec\n\n", 
-            "", sqrt((SQ_SERVICE_TIME - toSeconds(SERVICE_TIME))/NUM_PACKETS)); 
-
-    if(TOTAL == 0)
-        fprintf(stdout, "%4stoken drop probability = NA ( No tokens were produced )", ""); 
-    else
-        fprintf(stdout, "%4stoken drop probability = %.6g\n", "", (double)DROPPED/TOTAL); 
-
-    if(NUM_PACKETS == 0)
-        fprintf(stdout, "%4spacket drop probability = NA ( No packets were produced )", "" ); 
-    else 
-        fprintf(stdout, "%4spacket drop probability = %.6g\n", "", (double)DROPPED_PKT/NUM_PACKETS); 
-}
 
 void init_stats(){
     /* Initialize the global stats variables */
@@ -211,4 +199,37 @@ void block_signal()
     sigaddset(&NEW, SIGINT);
 
     pthread_sigmask(SIG_BLOCK, &NEW, NULL);
+}
+
+void unblock_SIGNAL()
+{
+    ACT.sa_handler = interrupt_main;
+    sigaction(SIGINT, &ACT, NULL);
+    pthread_sigmask(SIG_UNBLOCK, &NEW, NULL);
+}
+
+void interrupt_main()
+{
+    //printf("<-----CTR+C RECIEVED------>\n");
+    SERVER_DIE = 1;
+    pthread_kill(TOKEN, SIGUSR1);
+    pthread_kill(PACKET, SIGUSR2);
+
+    pthread_mutex_lock(&m);
+    //printf("Inside mutex of Man\n");
+    while(!My402ListEmpty(Q2)){
+        My402ListElem *elem = My402ListFirst(Q2);
+        My402dataElem *topEle = (My402dataElem*)(elem->obj);
+        My402ListUnlink(Q2, elem);
+
+        TIME_AT_Q1 = diff_timeval(TIME_AT_Q1, topEle->q1duration);
+    }
+    /* Clear the list */
+    My402ListUnlinkAll(Q1);
+    pthread_mutex_unlock(&m);
+
+    pthread_cond_broadcast(&cond_t);
+
+    //printf("<-----MAIN DYING------>\n");
+    pthread_exit(0);
 }
